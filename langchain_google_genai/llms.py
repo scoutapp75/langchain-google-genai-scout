@@ -149,18 +149,18 @@ Supported examples:
     """The maximum number of seconds to wait for a response."""
 
     client_options: Optional[Dict] = Field(
-        default=None,
+        None,
         description=(
             "A dictionary of client options to pass to the Google API client, "
             "such as `api_endpoint`."
         ),
     )
     transport: Optional[str] = Field(
-        default=None,
+        None,
         description="A string, one of: [`rest`, `grpc`, `grpc_asyncio`].",
     )
     additional_headers: Optional[Dict[str, str]] = Field(
-        default=None,
+        None,
         description=(
             "A key-value dictionary representing additional headers for the model call"
         ),
@@ -180,7 +180,7 @@ Supported examples:
                 HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
             }
             """  # noqa: E501
-
+    response_mime_type="text/plain"
     @property
     def lc_secrets(self) -> Dict[str, str]:
         return {"google_api_key": "GOOGLE_API_KEY"}
@@ -212,7 +212,7 @@ class GoogleGenerativeAI(_BaseGoogleGenerativeAI, BaseLLM):
             llm = GoogleGenerativeAI(model="gemini-pro")
     """
 
-    client: Any = None  #: :meta private:
+    client: Any  #: :meta private:
 
     @root_validator()
     def validate_environment(cls, values: Dict) -> Dict:
