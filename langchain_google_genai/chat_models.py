@@ -346,17 +346,45 @@ def _convert_to_parts(
 def _parse_chat_history(
     input_messages: Sequence[BaseMessage], convert_system_message_to_human: bool = False
 ) -> Tuple[Optional[Content], List[Content]]:
-    messages: List[Content] = []
+    """
+    Parses chat history, allowing multiple SystemMessage instances only at the beginning.
+    Combines all leading SystemMessages into a single system_instruction.
 
+    Args:
+        input_messages (Sequence[BaseMessage]): List of message objects.
+        convert_system_message_to_human (bool): Whether to convert system messages to human messages.
+
+    Returns:
+        Tuple[Optional[Content], List[Content]]: 
+            - system_instruction: Combined Content object from SystemMessages.
+            - messages: List of Content objects for other message types.
+
+    Raises:
+        ValueError: If a SystemMessage is found beyond the initial consecutive SystemMessages.
+    """
+    messages: List[Content] = []
+    system_instructions: List[str] = []
     if convert_system_message_to_human:
         warnings.warn("Convert_system_message_to_human will be deprecated!")
 
     system_instruction: Optional[Content] = None
+    system_message_encountered = False  # Flag to indicate if non-SystemMessage has been encountered
+
     for i, message in enumerate(input_messages):
-        if i == 0 and isinstance(message, SystemMessage):
-            system_instruction = Content(parts=_convert_to_parts(message.content))
-            continue
-        elif isinstance(message, AIMessage):
+        if isinstance(message, SystemMessage):
+            if system_message_encountered:
+                # SystemMessage found after non-SystemMessages have started
+                raise ValueError(
+                    f"Unexpected SystemMessage with type {type(message)} at position {i}. "
+                    "SystemMessages are only allowed at the beginning of the conversation."
+                )
+            # Collect system instructions
+            system_instructions.append(message.content)
+            continue  # Skip adding SystemMessage to messages list
+        else:
+            system_message_encountered = True  # Any non-SystemMessage marks the end of initial SystemMessages
+
+        if isinstance(message, AIMessage):
             role = "model"
             raw_function_call = message.additional_kwargs.get("function_call")
             if raw_function_call:
@@ -372,9 +400,10 @@ def _parse_chat_history(
         elif isinstance(message, HumanMessage):
             role = "user"
             parts = _convert_to_parts(message.content)
-            if i == 1 and convert_system_message_to_human and system_instruction:
-                parts = [p for p in system_instruction.parts] + parts
-                system_instruction = None
+            if i == len(system_instructions) and convert_system_message_to_human and system_instructions:
+                # Collect all parts from system instructions and add to message parts
+                parts = _convert_to_parts("\n".join(system_instructions)).parts + parts
+                system_instructions = []  # Reset after merging
         elif isinstance(message, FunctionMessage):
             role = "user"
             response: Any
@@ -437,6 +466,11 @@ def _parse_chat_history(
             )
 
         messages.append(Content(role=role, parts=parts))
+
+    # Combine all collected system instructions into one Content object
+    system_instruction: Optional[Content] = (
+        Content(parts=_convert_to_parts("\n".join(system_instructions))) if system_instructions else None
+    )
     return system_instruction, messages
 
 
